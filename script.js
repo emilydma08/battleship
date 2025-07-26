@@ -108,6 +108,7 @@ function setUp(){
 async function placeShips(player, boxId) {
     const ships = player.playerShips;
     const board = player.playerBoard;
+    const boxes = document.querySelectorAll(`.${boxId}`);
 
     for (let i = 0; i < ships.length; i++) {
         let placed = false;
@@ -127,9 +128,6 @@ async function placeShips(player, boxId) {
 
                     resolve({ x, y, boxElement: event.target });
                 }
-
-                const boxes = document.querySelectorAll(`.${boxId}`);
-
                 boxes.forEach(box => box.addEventListener('click', onClick));
             });
 
@@ -138,13 +136,36 @@ async function placeShips(player, boxId) {
             startBox.boxElement.textContent = "";
 
             try {
-                console.log('Placing ship of length ' + ships[i].length);
                 board.placeShip(ships[i], startBox.x, startBox.y, direction);
                 placed = true;
+
+                // Visually mark the ship's position
+                ships[i].positions.forEach(pos => {
+                    const [x, y] = pos;
+                    const shipBox = Array.from(boxes).find(box =>
+                        box.dataset.x === x.toString() && box.dataset.y === y.toString()
+                    );
+                    if (shipBox) {
+                        shipBox.textContent = 'X';
+                    }
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // Clear the visual markers for the next placement
+                ships[i].positions.forEach(pos => {
+                    const [x, y] = pos;
+                    const shipBox = Array.from(boxes).find(box =>
+                        box.dataset.x === x.toString() && box.dataset.y === y.toString()
+                    );
+                    if (shipBox) {
+                        shipBox.textContent = '';
+                    }
+                });
+
             } catch (e) {
                 displayInstructions("Invalid placement, try again.");
-                console.log('Invalid plaecment, try again');
-                // loop continues, re-prompting the player
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
     }
@@ -156,11 +177,7 @@ async function placeShips(player, boxId) {
 /* DOM FUNCTIONS */
 const turnText = document.getElementById("playerId");
 function toggleTurn(){
-    if (turnText.textContent ===  "1"){
-        turnText.textContent = "2";
-    } else {
-        turnText.textContent =  "1";
-    }
+    turnText.textContent = turnText.textContent === "1" ? "2" : "1";
 }
 
 const instructions = document.getElementById("instructions");
@@ -202,54 +219,38 @@ function displayDirectionButtons(){
 
 const board1 = document.getElementById("player1-board");
 const board2 = document.getElementById("player2-board");
-function updateBoard(player){
-    let referenceBoard = player.playerBoard.board;
-    let domBoard;
-    let boxes;
+function updateBoard(player, isOpponentBoard = false) {
+    const referenceBoard = player.playerBoard.board;
+    const boardId = isOpponentBoard ? (player === player1 ? 'player2-board' : 'player1-board') : (player === player1 ? 'player1-board' : 'player2-board');
+    const boxClass = isOpponentBoard ? (player === player1 ? 'box2' : 'box') : (player === player1 ? 'box' : 'box2');
+    const domBoard = document.getElementById(boardId);
+    const boxes = document.querySelectorAll(`.${boxClass}`);
 
-    if (turnText.textContent === "1"){
-        domBoard = board1;
-        boxes = document.querySelectorAll('.box');
-        if (!board1.classList.contains('active')){
-            board1.classList.add('active');
-            board1.classList.remove('inactive');
-        }
-        if (!board2.classList.contains('inactive')){
-            board2.classList.add('inactive');
-            board2.classList.remove('active');
-        }
-    } else if (turnText.textContent === "2"){
-        domBoard = board2;
-        boxes = document.querySelectorAll('.box2');
-        if (!board2.classList.contains('active')){
-            board2.classList.add('active');
-            board2.classList.remove('inactive');
-        }
-        if (!board1.classList.contains('inactive')){
-            board1.classList.add('inactive');
-            board1.classList.remove('active');
-        }
+    // Simplified board state toggling
+    if (isOpponentBoard) {
+        board1.classList.toggle('active', player !== player1);
+        board1.classList.toggle('inactive', player === player1);
+        board2.classList.toggle('active', player === player1);
+        board2.classList.toggle('inactive', player !== player1);
     }
 
-    for (let i = 0; i < referenceBoard.length; i++){
-        for (let j = 0; j < referenceBoard[0].length; j++){
+    for (let i = 0; i < referenceBoard.length; i++) {
+        for (let j = 0; j < referenceBoard[0].length; j++) {
             const currentBox = Array.from(boxes).find(div =>
                 div.dataset.x === i.toString() && div.dataset.y === j.toString()
-            )
+            );
+            if (!currentBox) continue;
+
             const cell = referenceBoard[i][j];
             if (cell && cell.hit === true) {
-                currentBox.textContent = "x";
-                currentBox.style.color = 'red';
-            } else if (cell && cell.miss === true) {
                 currentBox.textContent = "o";
                 currentBox.style.color = 'green';
+            } else if (cell && cell.miss === true) {
+                currentBox.textContent = "x";
+                currentBox.style.color = 'red';
             }
         }
-        
-
     }
-
-
 }
 
 
@@ -263,14 +264,12 @@ async function playBattleship() {
     displayInstructions("Player 1: Place your ships");
     updateBoard(player1);
     await placeShips(player1, 'box');
-    console.log(player1.playerShips);
 
     toggleTurn();
 
     displayInstructions("Player 2: Place your ships");
     updateBoard(player2);
     await placeShips(player2, 'box2');
-    console.log(player2.playerShips);
 
     toggleTurn();
 
@@ -279,7 +278,29 @@ async function playBattleship() {
 
     let gameOver = false;
 
+    const continueBtn = document.getElementById('continue-btn');
+
+    function showContinueButton() {
+        continueBtn.style.display = 'block';
+    }
+
+    function hideContinueButton() {
+        continueBtn.style.display = 'none';
+    }
+
+    continueBtn.addEventListener('click', () => {
+        toggleTurn();
+        [currentPlayer, opponent] = [opponent, currentPlayer];
+        updateBoard(opponent, true);
+        hideContinueButton();
+        // Re-enable clicking on the board
+        document.querySelectorAll('.box, .box2').forEach(box => {
+            box.style.pointerEvents = 'auto';
+        });
+    });
+
     async function handleTurn(event) {
+        if (gameOver) return;
         const box = event.target;
         if (!box.classList.contains('box') && !box.classList.contains('box2')) return;
     
@@ -289,30 +310,32 @@ async function playBattleship() {
         const opponentBoard = opponent.playerBoard;
         const cell = opponentBoard.board[x][y];
     
-        if (cell?.hit || cell?.miss) return; // Already attacked
+        if (cell?.hit || cell?.miss) return;
     
         opponentBoard.receiveAttack(x, y);
-        updateBoard(opponent);
+        updateBoard(opponent, true);
+    
+        const attackedCell = opponentBoard.board[x][y];
+        if (attackedCell.hit) {
+            const ship = attackedCell.ship;
+            if (ship.isSunk()) {
+                displayInstructions("You sunk a ship!");
+            } else {
+                displayInstructions("Hit! Go again.");
+            }
+        } else {
+            displayInstructions("Miss! Switching turns...");
+            showContinueButton();
+            // Disable clicking on the board until continue is clicked
+            document.querySelectorAll('.box, .box2').forEach(box => {
+                box.style.pointerEvents = 'none';
+            });
+        }
     
         if (opponentBoard.allShipsSunk()) {
             displayInstructions(`Player ${turnText.textContent} wins!`);
             gameOver = true;
-            document.querySelectorAll('.box, .box2').forEach(box => {
-                box.removeEventListener('click', handleTurn);
-            });
-            return;
-        }
-    
-        if (opponentBoard.board[x][y].hit) {
-            displayInstructions("Hit! Go again.");
-            updateBoard(opponent)
-        } else {
-            displayInstructions("Miss! Switching turns...");
-            // wait 5 seconds before switching turn and updating board
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            toggleTurn();
-            [currentPlayer, opponent] = [opponent, currentPlayer];
-            updateBoard(opponent);
+            hideContinueButton();
         }
     }
     
