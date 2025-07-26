@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel=stylesheet href="styles.css">
+</head>
+<body>
+    <h1>Welcome to Battleship</h1>
+    <div id="gameText">
+        <p id="playerTurn">Player <span id="playerId">1</span>'s Turn</p>
+        <p id="instructions"></p>
+        <div id="buttons"></div>
+    </div>
+    <div id="player1-board" class="board active">
+        <script>
+            for (let i = 0; i < 10; i++) { // rows (y)
+              for (let j = 0; j < 10; j++) { // cols (x)
+                document.write(`<div class="box" data-y="${j}" data-x="${i}"></div>`);
+              }
+            }
+          </script>
+    </div>
+    <div id="player2-board" class="board inactive">
+        <script>
+            for (let i = 0; i < 10; i++) { // rows (y)
+              for (let j = 0; j < 10; j++) { // cols (x)
+                document.write(`<div class="box2" data-y="${j}" data-x="${i}"></div>`);
+              }
+            }
+          </script>
+    </div>
+
+    <script src="script.js"></script>
+    
+</body>
+</html>
