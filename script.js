@@ -256,8 +256,11 @@ function updateBoard(player, isOpponentBoard = false) {
 
 
 /* MASTER FUNCTION */
+let player1, player2;
 async function playBattleship() {
-    const { player1, player2 } = setUp();
+    const players = setUp();
+    player1 = players.player1;
+    player2 = players.player2;
     let currentPlayer = player1;
     let opponent = player2;
 
