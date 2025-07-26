@@ -108,11 +108,11 @@ function setUp(){
 async function placeShips(player, boxId) {
     const ships = player.playerShips;
     const board = player.playerBoard;
-    const boxes = document.querySelectorAll(`.${boxId}`);
 
     for (let i = 0; i < ships.length; i++) {
         let placed = false;
         while (!placed) {
+            const boxes = document.querySelectorAll(`.${boxId}`);
             displayInstructions("Mark ship of length " + ships[i].length + "'s starting box and select direction");
 
             const startBox = await new Promise((resolve) => {
