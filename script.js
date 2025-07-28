@@ -41,10 +41,10 @@ function gameboard () {
         ships.push(ship);
         for (let i = 0; i < ship.length; i++){
             if (direction === "y"){
-                board[x+i][y] = ship;
+                board[x+i][y] = {ship: ship, hit: false};
                 ship.positions.push([x+i, y]);
             } else if (direction === "x"){
-                board[x][y+i] = ship;
+                board[x][y+i] = {ship: ship, hit: false};
                 ship.positions.push([x, y+i]);
             }
         }
@@ -52,13 +52,16 @@ function gameboard () {
 
     const receiveAttack = (x, y) => {        
         const target = board[x][y];
+        console.log("Target received at " + x + ", " + y);
 
         if (target && (target.hit || target.miss)) return;
 
-        if (target && typeof target.hit === "function") {
-            target.hit();
-            board[x][y] = { ship: target, hit: true };
+        if (target && target.ship) {
+            console.log("Target marked as hit: " + target);
+            target.ship.hit(); 
+            board[x][y] = { ship: target.ship, hit: true };
         } else {
+            console.log("Target marked as a miss: " + target);
             board[x][y] = { miss: true };
             missedShots.push([x, y]);
         }
@@ -77,11 +80,12 @@ function gameboard () {
 }
 
 /* returns {playerShips, playerBoard} */
-function player (ships, board) {
+function player (ships, board, id) {
     const playerShips = ships;
     const playerBoard = board;
+    const playerId = id;
 
-    return {playerShips, playerBoard};
+    return {playerShips, playerBoard, playerId};
 }
 
 
@@ -99,8 +103,8 @@ function setUp(){
         player2ships.push(ship(shipLengths[i]));
     }
 
-    const player1 = player(player1ships, gameboard());
-    const player2 = player(player2ships, gameboard());
+    const player1 = player(player1ships, gameboard(), "1");
+    const player2 = player(player2ships, gameboard(), "2");
 
     return {player1, player2};
 }
@@ -116,20 +120,27 @@ async function placeShips(player, boxId) {
             displayInstructions("Mark ship of length " + ships[i].length + "'s starting box and select direction");
 
             const startBox = await new Promise((resolve) => {
-                function onClick(event) {
+                const handleClick = (event) => {
                     if (!event.target.classList.contains(boxId)) return;
-
-                    boxes.forEach(box => box.removeEventListener('click', onClick));
-
-                    event.target.textContent = "X";
-
+            
+                    // Clean up listeners
+                    boxes.forEach(box => box.removeEventListener('click', handleClick));
+            
                     const x = parseInt(event.target.getAttribute('data-x'), 10);
                     const y = parseInt(event.target.getAttribute('data-y'), 10);
-
+            
+                    event.target.textContent = "X";
+            
                     resolve({ x, y, boxElement: event.target });
-                }
-                boxes.forEach(box => box.addEventListener('click', onClick));
+                };
+            
+                // Attach only once per box
+                boxes.forEach(box => {
+                    box.removeEventListener('click', handleClick); // pre-clean just in case
+                    box.addEventListener('click', handleClick);
+                });
             });
+            
 
             const direction = await displayDirectionButtons();
 
@@ -150,7 +161,7 @@ async function placeShips(player, boxId) {
                     }
                 });
 
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Clear the visual markers for the next placement
                 ships[i].positions.forEach(pos => {
@@ -227,11 +238,16 @@ function updateBoard(player, isOpponentBoard = false) {
     const boxes = document.querySelectorAll(`.${boxClass}`);
 
     // Simplified board state toggling
-    if (isOpponentBoard) {
-        board1.classList.toggle('active', player !== player1);
-        board1.classList.toggle('inactive', player === player1);
-        board2.classList.toggle('active', player === player1);
-        board2.classList.toggle('inactive', player !== player1);
+    if (player.playerId === "1") {
+        board1.classList.add('active');
+        board1.classList.remove('inactive');
+        board2.classList.remove('active');
+        board2.classList.add('inactive');
+    } else {
+        board2.classList.add('active');
+        board2.classList.remove('inactive');
+        board1.classList.remove('active');
+        board1.classList.add('inactive');
     }
 
     for (let i = 0; i < referenceBoard.length; i++) {
@@ -270,6 +286,8 @@ async function playBattleship() {
 
     toggleTurn();
 
+    console.log(document.querySelectorAll('.box2').length);  // Should be 100
+
     displayInstructions("Player 2: Place your ships");
     updateBoard(player2);
     await placeShips(player2, 'box2');
@@ -294,13 +312,18 @@ async function playBattleship() {
     continueBtn.addEventListener('click', () => {
         toggleTurn();
         [currentPlayer, opponent] = [opponent, currentPlayer];
-        updateBoard(opponent, true);
+        updateBoard(opponent);
         hideContinueButton();
-        // Re-enable clicking on the board
-        document.querySelectorAll('.box, .box2').forEach(box => {
+    
+        // Re-enable clicking and rebind listeners
+        const boxes = document.querySelectorAll('.box, .box2');
+        boxes.forEach(box => {
             box.style.pointerEvents = 'auto';
+            box.removeEventListener('click', handleTurn); // prevent duplicates
+            box.addEventListener('click', handleTurn);    // rebind properly
         });
     });
+    
 
     async function handleTurn(event) {
         if (gameOver) return;
@@ -313,18 +336,35 @@ async function playBattleship() {
         const opponentBoard = opponent.playerBoard;
         const cell = opponentBoard.board[x][y];
     
-        if (cell?.hit || cell?.miss) return;
+        if (cell && (cell.hit === true || cell.miss === true)) {
+            console.log(`Already attacked cell at [${x},${y}] — skipping attack.`);
+            return;
+        }
     
         opponentBoard.receiveAttack(x, y);
-        updateBoard(opponent, true);
+        updateBoard(opponent);
     
         const attackedCell = opponentBoard.board[x][y];
         if (attackedCell.hit) {
-            const ship = attackedCell.ship;
-            if (ship.isSunk()) {
-                displayInstructions("You sunk a ship!");
+            if (attackedCell.hit) {
+                console.log("Ship was hit!")
+                const ship = attackedCell.ship;
+                if (ship.isSunk()) {
+                    displayInstructions("You sunk a ship!");
+                } else {
+                    displayInstructions("Hit! Go again.");
+                }
             } else {
-                displayInstructions("Hit! Go again.");
+                displayInstructions("Miss! Switching turns...");
+                showContinueButton();
+                
+                updateBoard(opponent);
+                console.log(opponent.playerBoard)
+                await new Promise(requestAnimationFrame);
+            
+                document.querySelectorAll('.box, .box2').forEach(box => {
+                    box.style.pointerEvents = 'none';
+                });
             }
         } else {
             displayInstructions("Miss! Switching turns...");
