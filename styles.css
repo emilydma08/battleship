@@ -17,8 +17,8 @@ body{
 }
 
 .board{
-    width: 60vmin;
-    height: 60vmin;
+    width: 70vmin;
+    height: 70vmin;
     display: grid;
     grid-template-columns: repeat(10, 1fr);
     grid-template-rows: repeat(10, 1fr);
@@ -62,6 +62,8 @@ h1{
     font-family: 'Pirata One', serif;
     font-size: clamp(3rem, 4vw, 6rem);
     color: white;
+    margin: 0 auto;
+    margin-top: 3vh;
 }
 
 #buttons{
